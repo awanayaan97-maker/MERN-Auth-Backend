@@ -15,7 +15,7 @@ const authRoute = require("./Routes/authRoutes")
 const userRoute = require("./Routes/userRoutes")
 
 
-aapp.use(cors({
+app.use(cors({
     origin: '*', 
     methods: ['GET', 'POST', 'OPTIONS', 'PUT', 'PATCH', 'DELETE'],
     allowedHeaders: ['X-CSRF-Token', 'X-Requested-With', 'Accept', 'Accept-Version', 'Content-Length', 'Content-MD5', 'Content-Type', 'Date', 'X-Api-Version', 'Authorization'],
