@@ -14,12 +14,14 @@ const connectDB = require("./Config/db");
 const authRoute = require("./Routes/authRoutes")
 const userRoute = require("./Routes/userRoutes")
 
+
 app.use(cors({
-    origin: [
-      process.env.API_URL,
-      "http://localhost:5173/"
-    ]
-}))
+    origin: '*', 
+    methods: ['GET', 'POST', 'OPTIONS', 'PUT', 'PATCH', 'DELETE'],
+    allowedHeaders: ['X-CSRF-Token', 'X-Requested-With', 'Accept', 'Accept-Version', 'Content-Length', 'Content-MD5', 'Content-Type', 'Date', 'X-Api-Version', 'Authorization'],
+    credentials: true
+}));
+
 app.use(express.json())
 
 connectDB()
