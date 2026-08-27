@@ -3,7 +3,7 @@
 A complete authentication system built with Node.js, Express, and MongoDB. Covers the full lifecycle of user authentication — signup with email verification, login, JWT-based session handling, and a self-service password reset flow.
 
 **Live API:** https://mern-auth-backend-henna.vercel.app/
-**Frontend repo:** [mern-auth-frontend](#)
+**Frontend repo:** https://github.com/awanayaan97-maker/MERN-Auth-Frontend
 
 ## What This Covers
 
