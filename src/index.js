@@ -11,6 +11,7 @@ const express = require("express");
 const app = express();
 const cors = require("cors");
 const connectDB = require("./Config/db");
+const errorMiddleware = require("./Middlewares/errorMiddleware")
 const authRoute = require("./Routes/authRoutes")
 const userRoute = require("./Routes/userRoutes")
 
@@ -32,6 +33,10 @@ app.get("/", (req, res) => {
 
 app.use("/api/auth", authRoute)
 app.use("/api/user", userRoute)
+
+
+app.use(errorMiddleware)
+
 
 const PORT = process.env.PORT
 

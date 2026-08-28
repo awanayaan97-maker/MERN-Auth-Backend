@@ -2,25 +2,24 @@ const jwt = require("jsonwebtoken")
 const bcrypt = require("bcrypt")
 const crypto = require("crypto");
 const User = require("../Models/UserSchema")
-const { SuccessResponse, rejectResponse } = require("../Helpers/SuccessResponse");
 const PendingSignup = require("../Models/OtpVerificationSchema");
 const sendOTP = require("./emailController");
 const PasswordReset = require("../Models/passwordResetSchema");
+const ApiError = require("../utils/ApiError");
+const ApiResponse = require("../utils/ApiRespone");
 
 
-async function signup(req, res) {
+async function signup(req, res, next) {
 
-  const { firstName, lastName, email, password } = req.body;
-
-  if (firstName === "" || lastName === "" || email === "" || password === "") {
-    res.json(rejectResponse(false, 400, "All fields are required"))
-  }
+  const { firstName, lastName, email, password } = req.body ?? {};
+  
+  if (!firstName || !lastName || !email || !password) return next(new ApiError(400, "All fields are required"))
 
   try {
 
     let userExits = await User.findOne({ email })
 
-    if (userExits) return res.json(rejectResponse(false, 409, "Email or username already exists"))
+    if (userExits) throw new ApiError(409, "Email or username already exists")
 
     let hashPassword = await bcrypt.hash(password, 12)
 
@@ -38,46 +37,37 @@ async function signup(req, res) {
 
     await sendOTP(email, otp)
 
-    res.json(SuccessResponse(true, 200, "Otp send successfully", otpData))
-
+    res.status(200).json(new ApiResponse(200, "Otp send successfully", otpData))
   }
 
   catch (error) {
 
-    if (error.message === "ValidationError") {
-      res.json(rejectResponse(false, 400, "Validation Error"))
-    }
-
-    else if (error.code === 11000) {
-      res.json(rejectResponse(false, 409, "email or username already exists"))
-    }
+    if (error.name === "ValidationError") return next(new ApiError(400, error.message))
+      
+    else if (error.code === 11000) return next(new ApiError(409, "email or username already exists"))
 
     else {
-      res.json(rejectResponse(false, 500, "Internel Server Error"))
+      next(error)
     }
-
+   
   }
 }
 
-async function login(req, res) {
+async function login(req, res, next) {
 
-  let { email, password } = req.body
+  let { email, password } = req.body ?? {};
+
+  if(!email || !password) return next(new ApiError(400, "email & password is required"))
 
   try {
 
     let data = await User.findOne({ email: email });
 
-    if (!data) {
-      res.json(rejectResponse(false, 404, "incorrect email user not found"));
-      return
-    }
+    if (!data) throw new ApiError(404, "Invalid credentails")
 
     const matchPassword = await bcrypt.compare(password, data.password)
 
-    if (!matchPassword) {
-      res.json(rejectResponse(false, 404, "Invalid credentails"))
-      return
-    }
+    if (!matchPassword) throw new ApiError(404, "Invalid credentails")
 
     let tokenDetails = {
       fisrtName: data.firstName,
@@ -101,30 +91,29 @@ async function login(req, res) {
   }
 
   catch (error) {
-    res.json(rejectResponse(false, 500, "Internel Server error"))
+    next(error)
   }
 
 }
 
-async function OTPVerification(req, res) {
+async function OTPVerification(req, res, next) {
 
-  let { otp, email } = req.body;
+  let { otp, email } = req.body ?? {};
 
-  if (!otp || !email) return res.json(rejectResponse(false, 400, "OTP number is required"))
-
+  if (!otp || !email) return next(new ApiError(400, "OTP number is required"))
+    
   try {
 
     let verifyEmail = await PendingSignup.findOne({ email: email })
 
-    if (!verifyEmail) return res.json(rejectResponse(false, 404, "OTP has expired. Please signup again."));
+    if (!verifyEmail) throw new ApiError(404, "OTP has expired. Please signup again.")
 
     if (verifyEmail.attempts >= 8) {
       await PendingSignup.deleteOne({ email })
-      return res.json(rejectResponse(false, 429, "Too many attempts. Please signup again."));
+      throw new ApiError(429, "Too many attempts. Please signup again.")
     }
 
-    if (otp !== verifyEmail.otp) return res.json(rejectResponse(false, 400, "Incorrect OTP. Please try again."));
-
+    if (otp !== verifyEmail.otp) throw new ApiError(400, "Too many attempts. Please signup again.")
 
     let data = await User.create({
       firstName: verifyEmail.firstName,
@@ -135,31 +124,29 @@ async function OTPVerification(req, res) {
 
     if (data) {
       await PendingSignup.deleteOne({ email: verifyEmail.email });
-      return res.json(SuccessResponse(true, 201, "User Created Successfully", data))
+      return res.status(201).json(new ApiResponse(201, "User Created Successfully", data))
     }
 
-    else {
-      return res.json(rejectResponse(false, 500, "Internel Server Error"))
-    }
+    else throw new ApiError(500, "Internel Server Error")
   }
 
   catch (error) {
-    res.json(rejectResponse(false, 500, "Internel Server Error"))
+    next(error)
   }
 
 }
 
-async function resendOTP(req, res) {
+async function resendOTP(req, res, next) {
 
-  let { email } = req.body
+  let { email } = req.body ?? {};
 
-  if (!email) return res.json(rejectResponse(false, 400, "Email is required"))
+  if (!email) return next(new ApiError(400, "Email is required"))
 
   try {
 
     let checkEmail = await PendingSignup.findOne({ email: email });
 
-    if (!checkEmail) return res.json(rejectResponse(false, 400, "No pending signup found. Please signup again."))
+    if (!checkEmail) throw new ApiError(400, "No pending signup found. Please signup again.")
 
     const newOTP = crypto.randomInt(100000, 1000000);
 
@@ -171,27 +158,27 @@ async function resendOTP(req, res) {
 
     await sendOTP(email, newOTP)
 
-    res.json(SuccessResponse(true, 200, "New OTP sent to your email"))
+    res.status(200).json(new ApiResponse(200, "New OTP sent to your email"))
 
   }
 
   catch (error) {
-    return res.json(rejectResponse(false, 500, "Internal Server Error"));
+    next
   }
 
 }
 
-async function forgotPasswordOTP(req, res) {
+async function forgotPasswordOTP(req, res, next) {
 
-  let { email } = req.body;
+  let { email } = req.body ?? {};
+
+   if (!email) return next(new ApiError(400, "Email is required"))
 
   try {
 
-    if (!email) return res.json(rejectResponse(false, 400, "Email is required"))
-
     let checkUser = await User.findOne({ email })
 
-    if (!checkUser) return res.json(rejectResponse(false, 404, "User not found"))
+    if (!checkUser) throw new ApiError(404, "User not found")
 
     let forgetPasswordOTP = crypto.randomInt(100000, 1000000);
 
@@ -200,52 +187,53 @@ async function forgotPasswordOTP(req, res) {
 
     await sendOTP(email, forgetPasswordOTP)
 
-    res.json(SuccessResponse(true, 200, "OTP sent to your email", forgetPasswordOTP))
+    res.status(200).json(new ApiRespone(200, "OTP sent to your email", forgetPasswordOTP))
 
   }
 
   catch (error) {
-    res.json(rejectResponse(false, 500, "Internel Server Error"))
+    next(error)
   }
 
 }
 
-async function forgotPasswordOTPVerification(req, res) {
+async function forgotPasswordOTPVerification(req, res, next) {
 
-  let { otp, email } = req.body
+  let { otp, email } = req.body ?? {}
 
-  if (!otp || !email) return res.json(rejectResponse(false, 400, "OTP is required"))
+  if (!otp || !email) return next(new ApiError(400, "OTP is required"))
 
   try {
 
     let checkUser = await PasswordReset.findOne({ email });
 
-    if (!checkUser) return res.json(rejectResponse(false, 404, "OTP has expired. Please try again. "))
+    if (!checkUser) throw new ApiError(404, "OTP has expired. Please try again. ")
 
-    if (checkUser.OTP !== otp) return res.json(rejectResponse(false, 400, "Incorrect OTP. Please try again."))
+    if (checkUser.OTP !== otp) throw new ApiError(400, "Incorrect OTP. Please try again.")
 
     let verifiedUser = await PasswordReset.findOneAndUpdate({ email }, { verified: true }, { new: true })
-    res.json(SuccessResponse(true, 200, "OTP Verified", verifiedUser))
+
+    res.status(200).json(new ApiResponse(200, "OTP Verified", verifiedUser))
 
   }
 
   catch (error) {
-    res.json(rejectResponse(false, 500, "Internel Server error"))
+    next(error)
   }
 
 }
 
-async function resetPassword(req, res) {
+async function resetPassword(req, res, next) {
 
-  let { password, email } = req.body;
+  let { password, email } = req.body ?? {} ;
+
+  if(!password || !email) return next(new ApiError(400, "email and reset password is required"))
 
   try {
 
     let checkUser = await PasswordReset.findOne({ email });
 
-    if (!checkUser || !checkUser.verified) {
-      return res.json(rejectResponse(false, 400, "Please verify OTP first"));
-    }
+    if (!checkUser || !checkUser.verified) throw new ApiError(400, "Please verify OTP first")
 
     let hashedPassword = await bcrypt.hash(password, 12);
 
@@ -253,13 +241,13 @@ async function resetPassword(req, res) {
 
     await PasswordReset.deleteOne({ email });
 
-    return res.json(SuccessResponse(true, 200, "Password reset successful"));
+    return res.status(200).json(new ApiResponse(200, "Password reset successful"));
 
   }
 
 
   catch (error) {
-     res.json(rejectResponse(false, 500, "Internel server error"))
+    next(error)
   }
 
 }

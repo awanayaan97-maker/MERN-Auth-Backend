@@ -1,7 +1,9 @@
-const { rejectResponse, SuccessResponse } = require("../Helpers/SuccessResponse")
-const User = require("../Models/UserSchema")
 
-async function getUser(req, res){
+const User = require("../Models/UserSchema")
+const ApiError = require("../utils/ApiError")
+const ApiResponse = require("../utils/ApiRespone")
+
+async function getUser(req, res, next){
 
 const id = req.user.id
 
@@ -9,16 +11,15 @@ try {
     
     const fetchUser = await User.findById(id).select("-password")
 
-    if(!fetchUser) return res.json(rejectResponse(false, 500, "Something went wrong"))
+    if(!fetchUser) throw new ApiError(500, "Something went wrong")
 
-    res.json(SuccessResponse(true, 200, "Data send successfully", fetchUser))
+    res.status(200).json(new ApiResponse(200, "Data send successfully", fetchUser))
 
 } 
 
 catch (error) {
-    res.json(rejectResponse(false, 500, "Internel server error"))
+  next(error)
 }
-
 }
 
 
